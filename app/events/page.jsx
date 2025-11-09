@@ -1,119 +1,85 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import Navigation from "@/components/navigation"
-import { apiClient } from "@/lib/api-client"
-import { useSession } from "next-auth/react"
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import Navigation from "@/components/navigation";
+import { apiClient } from "@/lib/api-client";
+import EventModal from "@/components/EventModal";
 
 export default function EventsPage() {
-  const { data: session } = useSession()
-  const [upcomingEvents, setUpcomingEvents] = useState([])
-  const [ongoingEvents, setOngoingEvents] = useState([])
-  const [activeTab, setActiveTab] = useState("upcoming")
-  const [loading, setLoading] = useState(true)
-  const [registeredEvents, setRegisteredEvents] = useState(new Set())
+  const [events, setEvents] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [selectedEvent, setSelectedEvent] = useState(null);
 
   useEffect(() => {
-    fetchEvents()
-  }, [])
+    fetchEvents();
+  }, [searchTerm]);
 
   const fetchEvents = async () => {
     try {
-      setLoading(true)
-      const events = await apiClient.getEvents()
-      const now = new Date()
-
-      const upcoming = events.filter((e) => new Date(e.date) > now)
-      const ongoing = events.filter((e) => new Date(e.date) <= now)
-
-      setUpcomingEvents(upcoming)
-      setOngoingEvents(ongoing)
+      setLoading(true);
+      const data = await apiClient.getEvents(searchTerm);
+      setEvents(data);
     } catch (error) {
-      console.error("Failed to fetch events:", error)
+      console.error("Failed to fetch events:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-
-  const handleRegister = async (eventId) => {
-    if (!session) return
-    try {
-      await apiClient.registerEvent(eventId)
-      setRegisteredEvents((prev) => new Set(prev).add(eventId))
-    } catch (error) {
-      console.error("Failed to register:", error)
-    }
-  }
-
-  const events = activeTab === "upcoming" ? upcomingEvents : ongoingEvents
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-4">Upcoming Events</h1>
+        <h1 className="text-4xl font-bold mb-2">Upcoming Events</h1>
+        <p className="text-muted-foreground mb-8">
+          Explore and register for exciting college events!
+        </p>
 
-          <div className="flex gap-4 mb-8">
-            <button
-              onClick={() => setActiveTab("upcoming")}
-              className={`px-6 py-2 rounded-lg font-medium ${
-                activeTab === "upcoming" ? "bg-primary text-white" : "bg-muted text-foreground hover:bg-muted/80"
-              }`}
-            >
-              Upcoming Events
-            </button>
-            <button
-              onClick={() => setActiveTab("ongoing")}
-              className={`px-6 py-2 rounded-lg font-medium ${
-                activeTab === "ongoing" ? "bg-primary text-white" : "bg-muted text-foreground hover:bg-muted/80"
-              }`}
-            >
-              Ongoing Events
-            </button>
-          </div>
-        </div>
+        <Input
+          placeholder="Search events..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-md mb-8"
+        />
 
         {loading ? (
           <div className="text-center">Loading events...</div>
         ) : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {events.map((event) => (
-              <Card key={event._id} className="border-2 border-primary/20 hover:border-primary/50 transition-all">
+              <Card
+                key={event._id}
+                className="border-2 border-primary/20 hover:border-primary/50 transition-all"
+              >
                 <div className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-bold text-foreground mb-2">{event.title}</h3>
-                      <div className="space-y-1 text-sm text-muted-foreground">
-                        <p>
-                          Date: {new Date(event.date).toLocaleDateString()} at {event.time}
-                        </p>
-                        <p>Location: {event.location}</p>
-                        <p>Host: {event.hostClub?.name || "TBA"}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="inline-block px-3 py-1 bg-secondary/20 rounded-full text-sm font-medium text-secondary mb-4">
-                        {event.category}
-                      </span>
-                      <Button
-                        onClick={() => handleRegister(event._id)}
-                        disabled={registeredEvents.has(event._id)}
-                        className="w-full bg-accent hover:bg-accent/90"
-                      >
-                        {registeredEvents.has(event._id) ? "Registered" : "Register"}
-                      </Button>
-                    </div>
-                  </div>
+                  <h3 className="text-xl font-semibold mb-2">{event.title}</h3>
+                  <p className="text-gray-600 mb-4 line-clamp-2">
+                    {event.description}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setSelectedEvent(event)}
+                  >
+                    More Details
+                  </Button>
                 </div>
               </Card>
             ))}
           </div>
         )}
+
+        {selectedEvent && (
+          <EventModal
+            event={selectedEvent}
+            onClose={() => setSelectedEvent(null)}
+          />
+        )}
       </main>
     </div>
-  )
+  );
 }

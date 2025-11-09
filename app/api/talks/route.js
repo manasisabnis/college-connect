@@ -1,40 +1,14 @@
-import { connectDB } from "@/lib/mongodb"
-import { Talk } from "@/lib/models/talk"
+import { NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import { Talk } from "@/lib/models/talk";
 
-/**
- * GET /api/talks
- * Get all talks with optional archived filter
- */
-export async function GET(request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url)
-    const archived = searchParams.get("archived") === "true"
-
-    await connectDB()
-
-    const talks = await Talk.find({ isArchived: archived })
-    return Response.json(talks)
+    await connectDB();
+    const talks = await Talk.find({});
+    return NextResponse.json(talks);
   } catch (error) {
-    console.error("Get talks error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
-  }
-}
-
-/**
- * POST /api/talks
- * Create new talk
- */
-export async function POST(request) {
-  try {
-    const body = await request.json()
-    await connectDB()
-
-    const talk = new Talk(body)
-    await talk.save()
-
-    return Response.json(talk, { status: 201 })
-  } catch (error) {
-    console.error("Create talk error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
+    console.error("❌ Error fetching talks:", error);
+    return NextResponse.json({ error: "Failed to fetch talks" }, { status: 500 });
   }
 }

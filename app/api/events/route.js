@@ -1,48 +1,14 @@
-import { connectDB } from "@/lib/mongodb"
-import { Event } from "@/lib/models/event"
-import { getServerSession } from "next-auth/next"
+import { NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import { Event } from "@/lib/models/event";
 
-/**
- * GET /api/events
- * Get all events with optional category filter
- */
-export async function GET(request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url)
-    const category = searchParams.get("category")
-
-    await connectDB()
-
-    const query = category ? { category } : {}
-    const events = await Event.find(query).populate("hostClub")
-
-    return Response.json(events)
+    await connectDB();
+    const events = await Event.find({});
+    return NextResponse.json(events);
   } catch (error) {
-    console.error("Get events error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
-  }
-}
-
-/**
- * POST /api/events
- * Create new event
- */
-export async function POST(request) {
-  try {
-    const session = await getServerSession()
-    if (!session) {
-      return Response.json({ message: "Unauthorized" }, { status: 401 })
-    }
-
-    const body = await request.json()
-    await connectDB()
-
-    const event = new Event(body)
-    await event.save()
-
-    return Response.json(event, { status: 201 })
-  } catch (error) {
-    console.error("Create event error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
+    console.error("❌ Error fetching events:", error);
+    return NextResponse.json({ error: "Failed to fetch events" }, { status: 500 });
   }
 }

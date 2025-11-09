@@ -1,78 +1,52 @@
-import { connectDB } from "@/lib/mongodb"
-import { Club } from "@/lib/models/club"
-import { User } from "@/lib/models/user"
-import { getServerSession } from "next-auth/next"
+import { NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import { Club } from "@/lib/models/club";
+import { User } from "@/lib/models/user";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-/**
- * POST /api/clubs/[id]/join
- * Join club (auth required)
- */
-export async function POST(request, { params }) {
+export async function POST(req, { params }) {
   try {
-    const session = await getServerSession()
-    if (!session) {
-      return Response.json({ message: "Unauthorized" }, { status: 401 })
+    // Ensure DB connection
+    await connectDB();
+
+    const { id } = params;
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
+      return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
     }
 
-    await connectDB()
-
-    const club = await Club.findById(params.id)
-    if (!club) {
-      return Response.json({ message: "Club not found" }, { status: 404 })
-    }
-
-    const user = await User.findById(session.user.id)
+    const user = await User.findOne({ email: session.user.email });
     if (!user) {
-      return Response.json({ message: "User not found" }, { status: 404 })
+      return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    // Check if already a member
-    if (club.members.includes(session.user.id)) {
-      return Response.json({ message: "Already a member of this club" }, { status: 409 })
+    const club = await Club.findById(id);
+    if (!club) {
+      return NextResponse.json({ message: "Club not found" }, { status: 404 });
     }
 
-    club.members.push(session.user.id)
-    user.clubsJoined.push(params.id)
+    // Prevent duplicates
+    if (user.clubsJoined.includes(id)) {
+      return NextResponse.json({ message: "Already joined this club" }, { status: 400 });
+    }
 
-    await club.save()
-    await user.save()
+    // ✅ Add club to user's joined list
+    user.clubsJoined.push(club._id);
+    await user.save();
 
-    return Response.json({ message: "Joined club successfully" })
+    // ✅ Always return JSON with message + updated data
+    return NextResponse.json({
+      message: `Successfully joined ${club.name}`,
+      clubsJoined: user.clubsJoined,
+    });
   } catch (error) {
-    console.error("Join club error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
-  }
-}
-
-/**
- * DELETE /api/clubs/[id]/join
- * Leave club (auth required)
- */
-export async function DELETE(request, { params }) {
-  try {
-    const session = await getServerSession()
-    if (!session) {
-      return Response.json({ message: "Unauthorized" }, { status: 401 })
-    }
-
-    await connectDB()
-
-    const club = await Club.findById(params.id)
-    const user = await User.findById(session.user.id)
-
-    if (!club || !user) {
-      return Response.json({ message: "Club or user not found" }, { status: 404 })
-    }
-
-    club.members = club.members.filter((id) => id.toString() !== session.user.id)
-    user.clubsJoined = user.clubsJoined.filter((id) => id.toString() !== params.id)
-
-    await club.save()
-    await user.save()
-
-    return Response.json({ message: "Left club successfully" })
-  } catch (error) {
-    console.error("Leave club error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
+    console.error("❌ Error joining club:", error);
+    // Ensure valid JSON response on every failure
+    return NextResponse.json(
+      { message: "Error joining club", error: error.message },
+      { status: 500 }
+    );
   }
 }

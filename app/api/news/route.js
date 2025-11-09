@@ -1,4 +1,6 @@
-import { connectDB } from "@/lib/mongodb"
+import { connectDB } from "@/lib/db";
+
+
 import { News } from "@/lib/models/news"
 
 /**

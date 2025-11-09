@@ -1,79 +1,34 @@
-import { connectDB } from "@/lib/mongodb"
-import { Event } from "@/lib/models/event"
-import { User } from "@/lib/models/user"
-import { getServerSession } from "next-auth/next"
+import { NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import { Event } from "@/lib/models/event";
+import { User } from "@/lib/models/user";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-/**
- * POST /api/events/[id]/register
- * Register user for event (auth required)
- */
-export async function POST(request, { params }) {
+export async function POST(req, { params }) {
   try {
-    const session = await getServerSession()
-    if (!session) {
-      return Response.json({ message: "Unauthorized" }, { status: 401 })
-    }
+    await connectDB();
+    const { id } = params;
+    const session = await getServerSession(authOptions);
 
-    await connectDB()
+    if (!session?.user?.email)
+      return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
 
-    const event = await Event.findById(params.id)
-    if (!event) {
-      return Response.json({ message: "Event not found" }, { status: 404 })
-    }
+    const user = await User.findOne({ email: session.user.email });
+    const event = await Event.findById(id);
 
-    const user = await User.findById(session.user.id)
-    if (!user) {
-      return Response.json({ message: "User not found" }, { status: 404 })
-    }
+    if (!user || !event)
+      return NextResponse.json({ message: "User or Event not found" }, { status: 404 });
 
-    // Check if already registered
-    if (event.registrations.includes(session.user.id)) {
-      return Response.json({ message: "Already registered for this event" }, { status: 409 })
-    }
+    if (user.eventsJoined.includes(id))
+      return NextResponse.json({ message: "Already registered" }, { status: 400 });
 
-    // Add registration
-    event.registrations.push(session.user.id)
-    user.eventsRegistered.push(params.id)
+    user.eventsJoined.push(event._id);
+    await user.save();
 
-    await event.save()
-    await user.save()
-
-    return Response.json({ message: "Registered successfully" })
+    return NextResponse.json({ message: `Registered for ${event.title}` });
   } catch (error) {
-    console.error("Register event error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
-  }
-}
-
-/**
- * DELETE /api/events/[id]/register
- * Unregister user from event (auth required)
- */
-export async function DELETE(request, { params }) {
-  try {
-    const session = await getServerSession()
-    if (!session) {
-      return Response.json({ message: "Unauthorized" }, { status: 401 })
-    }
-
-    await connectDB()
-
-    const event = await Event.findById(params.id)
-    const user = await User.findById(session.user.id)
-
-    if (!event || !user) {
-      return Response.json({ message: "Event or user not found" }, { status: 404 })
-    }
-
-    event.registrations = event.registrations.filter((id) => id.toString() !== session.user.id)
-    user.eventsRegistered = user.eventsRegistered.filter((id) => id.toString() !== params.id)
-
-    await event.save()
-    await user.save()
-
-    return Response.json({ message: "Unregistered successfully" })
-  } catch (error) {
-    console.error("Unregister event error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
+    console.error("❌ Error registering for event:", error);
+    return NextResponse.json({ error: "Error registering" }, { status: 500 });
   }
 }

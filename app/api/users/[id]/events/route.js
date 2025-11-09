@@ -1,22 +1,28 @@
-import { connectDB } from "@/lib/mongodb"
-import { User } from "@/lib/models/user"
+import { NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import { User } from "@/lib/models/user";
+import { Event } from "@/lib/models/event";
 
-/**
- * GET /api/users/[id]/events
- * Get user's registered events
- */
-export async function GET(request, { params }) {
+export async function GET(req, { params }) {
   try {
-    await connectDB()
-    const user = await User.findById(params.id).populate("eventsRegistered")
+    await connectDB();
+
+    const { id } = params;
+    const user = await User.findById(id).populate("eventsRegistered");
 
     if (!user) {
-      return Response.json({ message: "User not found" }, { status: 404 })
+      return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    return Response.json(user.eventsRegistered)
+    return NextResponse.json({
+      message: "Fetched registered events successfully",
+      eventsRegistered: user.eventsRegistered || [],
+    });
   } catch (error) {
-    console.error("Get user events error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
+    console.error("❌ Error fetching user's events:", error);
+    return NextResponse.json(
+      { message: "Error fetching user's events", error: error.message },
+      { status: 500 }
+    );
   }
 }

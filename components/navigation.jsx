@@ -10,7 +10,6 @@ export default function Navigation() {
   const navItems = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/clubs", label: "Clubs" },
-    { href: "/events", label: "Upcoming Events" },
     { href: "/events", label: "Ongoing Events" },
     { href: "/guest-talks", label: "Guest Talks" },
     { href: "/news", label: "All India" },

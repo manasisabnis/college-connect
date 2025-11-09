@@ -1,22 +1,28 @@
-import { connectDB } from "@/lib/mongodb"
-import { User } from "@/lib/models/user"
+import { NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import { User } from "@/lib/models/user";
+import { Club } from "@/lib/models/club";
 
-/**
- * GET /api/users/[id]/clubs
- * Get user's joined clubs
- */
-export async function GET(request, { params }) {
+export async function GET(req, { params }) {
   try {
-    await connectDB()
-    const user = await User.findById(params.id).populate("clubsJoined")
+    await connectDB();
+
+    const { id } = params;
+    const user = await User.findById(id).populate("clubsJoined");
 
     if (!user) {
-      return Response.json({ message: "User not found" }, { status: 404 })
+      return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    return Response.json(user.clubsJoined)
+    return NextResponse.json({
+      message: "Fetched joined clubs successfully",
+      clubsJoined: user.clubsJoined || [],
+    });
   } catch (error) {
-    console.error("Get user clubs error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
+    console.error("❌ Error fetching user's clubs:", error);
+    return NextResponse.json(
+      { message: "Error fetching user's clubs", error: error.message },
+      { status: 500 }
+    );
   }
 }

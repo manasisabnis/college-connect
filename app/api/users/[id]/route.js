@@ -1,53 +1,40 @@
-import { connectDB } from "@/lib/mongodb"
-import { User } from "@/lib/models/user"
-import { getServerSession } from "next-auth/next"
+import { NextResponse } from "next/server";
+import mongoose from "mongoose";
+import { User } from "@/lib/models/user";
+import { Club } from "@/lib/models/club";   // ✅ make sure to import
+import { Event } from "@/lib/models/event"; // ✅ make sure to import
+import { connectDB } from "@/lib/mongodb";  // if you have a DB helper
 
-/**
- * GET /api/users/[id]
- * Get user profile
- */
-export async function GET(request, { params }) {
+export async function GET(req, context) {
   try {
-    await connectDB()
-    const user = await User.findById(params.id).populate("clubsJoined").populate("eventsRegistered").select("-password")
+    // ✅ Await params in Next.js App Router
+    const { id } = await context.params;
+
+    // ✅ Ensure DB connection
+    await connectDB?.() || mongoose.connect(process.env.MONGODB_URI);
+
+    // ✅ Populate with imported models (prevents MissingSchemaError)
+    const user = await User.findById(id)
+      .populate({
+        path: "clubsJoined",
+        model: Club, // ensure populated model exists
+      })
+      .populate({
+        path: "eventsRegistered",
+        model: Event, // ensure populated model exists
+      })
+      .select("-password");
 
     if (!user) {
-      return Response.json({ message: "User not found" }, { status: 404 })
+      return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    return Response.json(user)
-  } catch (error) {
-    console.error("Get user error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
-  }
-}
-
-/**
- * PUT /api/users/[id]
- * Update user profile (auth required)
- */
-export async function PUT(request, { params }) {
-  try {
-    const session = await getServerSession()
-    if (!session || session.user.id !== params.id) {
-      return Response.json({ message: "Unauthorized" }, { status: 401 })
-    }
-
-    const body = await request.json()
-    await connectDB()
-
-    const user = await User.findByIdAndUpdate(params.id, body, {
-      new: true,
-      runValidators: true,
-    }).select("-password")
-
-    if (!user) {
-      return Response.json({ message: "User not found" }, { status: 404 })
-    }
-
-    return Response.json(user)
-  } catch (error) {
-    console.error("Update user error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
+    return NextResponse.json(user);
+  } catch (err) {
+    console.error("Get user error:", err);
+    return NextResponse.json(
+      { message: "Error fetching user", error: err.message },
+      { status: 500 }
+    );
   }
 }

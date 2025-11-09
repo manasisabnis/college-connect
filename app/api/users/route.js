@@ -1,17 +1,14 @@
-import { connectDB } from "@/lib/mongodb"
-import { User } from "@/lib/models/user"
+import { NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import { User } from "@/lib/models/user";
 
-/**
- * GET /api/users
- * Get all users (admin only)
- */
-export async function GET(request) {
+export async function GET() {
   try {
-    await connectDB()
-    const users = await User.find({}).select("-password")
-    return Response.json(users)
+    await connectDB();
+    const users = await User.find({});
+    return NextResponse.json(users);
   } catch (error) {
-    console.error("Get users error:", error)
-    return Response.json({ message: "Internal server error" }, { status: 500 })
+    console.error("❌ Error fetching users:", error);
+    return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
   }
 }

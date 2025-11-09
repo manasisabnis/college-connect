@@ -1,157 +1,126 @@
-"use client"
-
-import { useEffect, useState } from "react"
-import { useSession } from "next-auth/react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import Navigation from "@/components/navigation"
-import { apiClient } from "@/lib/api-client"
-import { useRouter } from "next/navigation"
+"use client";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import Navigation from "@/components/navigation";
 
 export default function DashboardPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const [userData, setUserData] = useState(null)
-  const [upcomingEvents, setUpcomingEvents] = useState([])
-  const [myClubs, setMyClubs] = useState([])
-  const [recentActivity, setRecentActivity] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: session } = useSession();
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/")
-      return
+    if (session?.user?.id) fetchUserData();
+  }, [session]);
+
+  const fetchUserData = async () => {
+    try {
+      const res = await fetch(`/api/users/${session.user.id}`);
+      if (!res.ok) throw new Error("Failed to fetch user data");
+      const data = await res.json();
+      setUserData(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    if (session?.user?.id) {
-      const fetchData = async () => {
-        try {
-          const user = await apiClient.getUser(session.user.id)
-          setUserData(user)
+  const handleNavigate = (type, id) => {
+    if (type === "club") router.push(`/clubs/${id}`);
+    if (type === "event") router.push(`/events/${id}`);
+    if (type === "talk") router.push(`/guest-talks/${id}`);
+  };
 
-          const events = await apiClient.getUserEvents(session.user.id)
-          setUpcomingEvents(events.slice(0, 2))
-
-          const clubs = await apiClient.getUserClubs(session.user.id)
-          setMyClubs(clubs)
-
-          // Mock recent activity
-          setRecentActivity([
-            { id: 1, text: "John Doe posted in Tech Club", time: "15:20" },
-            { text: "New photos added to Annual Sports Fest album", time: null },
-            { text: "New photos added to Annual Fort ur 4", time: "27:204" },
-          ])
-        } catch (error) {
-          console.error("Failed to fetch dashboard data:", error)
-        } finally {
-          setLoading(false)
-        }
-      }
-
-      fetchData()
-    }
-  }, [session, status, router])
-
-  if (status === "loading" || loading) {
-    return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>
-  }
+  if (loading)
+    return (
+      <div className="flex justify-center items-center h-screen text-lg text-gray-600">
+        Loading your dashboard...
+      </div>
+    );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
       <Navigation />
+      <main className="max-w-6xl mx-auto px-6 py-10 space-y-10">
+        {/* Header */}
+        <header>
+          <h1 className="text-4xl font-bold mb-2">
+            Welcome, {userData?.name} 👋
+          </h1>
+          <p className="text-gray-600 mb-8">Email: {userData?.email}</p>
+        </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Welcome Banner */}
-        <Card className="bg-gradient-to-r from-primary to-blue-400 text-white mb-8 border-0">
-          <div className="p-8 flex items-center gap-4">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-              <span className="text-2xl">👤</span>
+        {/* --- Clubs Section --- */}
+        <section>
+          <h2 className="text-2xl font-semibold mb-4">Your Clubs</h2>
+          {userData?.clubsJoined?.length ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {userData.clubsJoined.map((club) => (
+                <Card
+                  key={club._id}
+                  className="p-5 cursor-pointer hover:shadow-lg transition"
+                  onClick={() => handleNavigate("club", club._id)}
+                >
+                  <div className="text-3xl mb-3">{club.icon || "🏫"}</div>
+                  <h3 className="text-lg font-bold">{club.name}</h3>
+                  <p className="text-sm text-gray-600">{club.tagline}</p>
+                </Card>
+              ))}
             </div>
-            <div>
-              <h1 className="text-3xl font-bold">Welcome Back, {userData?.name || session?.user?.name}!</h1>
+          ) : (
+            <p className="text-gray-500">You haven’t joined any clubs yet.</p>
+          )}
+        </section>
+
+        {/* --- Events Section --- */}
+        <section>
+          <h2 className="text-2xl font-semibold mb-4">Registered Events</h2>
+          {userData?.eventsRegistered?.length ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {userData.eventsRegistered.map((event) => (
+                <Card
+                  key={event._id}
+                  className="p-5 cursor-pointer hover:shadow-lg transition"
+                  onClick={() => handleNavigate("event", event._id)}
+                >
+                  <h3 className="text-lg font-bold">{event.title}</h3>
+                  <p className="text-sm text-gray-600">{event.location}</p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(event.date).toLocaleDateString()} • {event.time}
+                  </p>
+                </Card>
+              ))}
             </div>
-          </div>
-        </Card>
+          ) : (
+            <p className="text-gray-500">No event registrations yet.</p>
+          )}
+        </section>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* My Upcoming Events */}
-            <Card className="border-0 shadow-sm">
-              <div className="bg-blue-50 px-6 py-4 border-b border-border">
-                <h2 className="text-xl font-bold text-foreground">My Upcoming Events</h2>
-              </div>
-              <div className="p-6 space-y-4">
-                {upcomingEvents.length > 0 ? (
-                  upcomingEvents.map((event) => (
-                    <div
-                      key={event._id}
-                      className="flex items-center justify-between pb-4 border-b border-border last:border-0"
-                    >
-                      <div>
-                        <p className="font-semibold text-foreground">{event.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(event.date).toLocaleDateString()} • {event.time}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-primary border-primary hover:bg-primary/10 bg-transparent"
-                      >
-                        View
-                      </Button>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-muted-foreground">No upcoming events</p>
-                )}
-              </div>
-            </Card>
-          </div>
-
-          {/* Right Column */}
-          <div className="space-y-8">
-            {/* Recent Activity */}
-            <Card className="border-0 shadow-sm">
-              <div className="bg-blue-50 px-6 py-4 border-b border-border">
-                <h2 className="text-lg font-bold text-foreground">Recent Activity</h2>
-              </div>
-              <div className="p-6 space-y-3">
-                {recentActivity.map((activity, idx) => (
-                  <div key={idx} className="text-sm">
-                    <p className="text-foreground">{activity.text}</p>
-                    {activity.time && <p className="text-muted-foreground text-xs">{activity.time}</p>}
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* My Clubs */}
-            <Card className="border-0 shadow-sm">
-              <div className="bg-green-50 px-6 py-4 border-b border-border">
-                <h2 className="text-lg font-bold text-foreground">My Clubs</h2>
-              </div>
-              <div className="p-6 space-y-3">
-                {myClubs.length > 0 ? (
-                  myClubs.map((club) => (
-                    <div
-                      key={club._id}
-                      className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
-                    >
-                      <span className="text-xl">{club.icon || "🏢"}</span>
-                      <span className="font-medium text-foreground">{club.name}</span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-muted-foreground">No clubs yet. Join one to get started!</p>
-                )}
-              </div>
-            </Card>
-          </div>
-        </div>
+        {/* --- Talks Section --- */}
+        <section>
+          <h2 className="text-2xl font-semibold mb-4">Guest Talks</h2>
+          {userData?.talksRegistered?.length ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {userData.talksRegistered.map((talk) => (
+                <Card
+                  key={talk._id}
+                  className="p-5 cursor-pointer hover:shadow-lg transition"
+                  onClick={() => handleNavigate("talk", talk._id)}
+                >
+                  <h3 className="text-lg font-bold">{talk.title}</h3>
+                  <p className="text-sm text-gray-600">{talk.speaker}</p>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500">No talks attended yet.</p>
+          )}
+        </section>
       </main>
     </div>
-  )
+  );
 }
